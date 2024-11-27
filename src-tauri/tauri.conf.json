@@ -69,7 +69,6 @@
         "center": true,
         "resizable": true,
         "fullscreen": false,
-        "fileDropEnabled": false,
         "useHttpsScheme": true
       }
     ]
