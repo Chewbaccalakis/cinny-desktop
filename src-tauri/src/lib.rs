@@ -16,8 +16,8 @@ pub fn run() {
     let url = format!("http://localhost:{}", port).parse().unwrap();
     let window_url = WindowUrl::External(url);
     // rewrite the config so the IPC is enabled on this URL
-    context.config_mut().build.dist_dir = AppUrl::Url(window_url.clone());
-    context.config_mut().build.dev_path = AppUrl::Url(window_url.clone());
+    context.config_mut().build.frontend_dist = AppUrl::Url(window_url.clone());
+    context.config_mut().build.dev_url = AppUrl::Url(window_url.clone());
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_shell::init())
