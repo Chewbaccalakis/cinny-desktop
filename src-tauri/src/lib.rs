@@ -6,7 +6,7 @@
 #[cfg(target_os = "macos")]
 mod menu;
 
-use tauri::{utils::config::AppUrl, WindowUrl};
+use tauri::{utils::config::AppUrl, WebviewUrl};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,7 +14,7 @@ pub fn run() {
 
     let mut context = tauri::generate_context!();
     let url = format!("http://localhost:{}", port).parse().unwrap();
-    let window_url = WindowUrl::External(url);
+    let window_url = WebviewUrl::External(url);
     // rewrite the config so the IPC is enabled on this URL
     context.config_mut().build.frontend_dist = AppUrl::Url(window_url.clone());
     context.config_mut().build.dev_url = AppUrl::Url(window_url.clone());
