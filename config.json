@@ -32,7 +32,7 @@
   },
 
   "hashRouter": {
-    "enabled": true,
+    "enabled": false,
     "basename": "/"
   }
 }
