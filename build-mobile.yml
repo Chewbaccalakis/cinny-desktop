@@ -1,0 +1,90 @@
+---
+- name: Build mobile packages for Cinny
+  hosts: localhost
+  tasks:
+
+    - name: Gather app metadata
+      block:
+        - name: Read tauri.conf.json
+          ansible.builtin.slurp:
+            src: src-tauri/tauri.conf.json
+          register: tauri_config
+
+        - name: Extract app version
+          set_fact:
+            app_version: "{{ tauri_config['content'] | b64decode | from_json | json_query('version') }}"
+
+        - name: Print extracted version
+          debug:
+            msg: "Building Cinny version {{ app_version }}"
+
+    - name: Clean previous builds
+      block:
+        - name: Clean target directory
+          ansible.builtin.file:
+            path: src-tauri/target
+            state: absent
+
+        - name: Clean iOS build
+          block:
+            - name: Clean build directory
+              ansible.builtin.file:
+                path: src-tauri/gen/apple/build
+                state: absent
+
+            - name: Clean Externals directory
+              ansible.builtin.file:
+                path: src-tauri/gen/apple/Externals
+                state: absent
+
+        - name: Clean Android build
+          block:
+            - name: Clean build directory
+              ansible.builtin.file:
+                path: src-tauri/gen/apple/build
+                state: absent
+
+            - name: Clean .gradle
+              ansible.builtin.file:
+                path: src-tauri/gen/android/.gradle
+                state: absent
+
+            - name: Clean build directory
+              ansible.builtin.file:
+                path: src-tauri/gen/android/tauri.settings.gradle
+                state: absent
+
+    - name: Create release directory
+      ansible.builtin.file:
+        path: release
+        state: directory
+        mode: '0755'
+
+    - name: Build for iOS
+      block:
+        - name: iOS build command
+          shell: "npm run tauri ios build | tee ios_build.log"
+          register: ios_build
+          args:
+            executable: /bin/bash
+        
+        - name: Copy .ipa file to release folder
+          ansible.builtin.copy:
+            src: src-tauri/gen/apple/build/arm64/Cinny.ipa
+            dest: release/Cinny-{{ app_version }}.ipa
+
+    - name: Build for Android
+      block:
+        - name: Get NDK version
+          shell: "ls -1 {{ lookup('env', 'HOME') }}/Library/Android/sdk/ndk | tail -n 1"
+          register: ndk_version
+          changed_when: false
+
+        - name: Android build command
+          shell: "npm run tauri android build -- --apk | tee android_build.log"
+          environment:
+            JAVA_HOME: "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+            ANDROID_HOME: "{{ lookup('env', 'HOME') }}/Library/Android/sdk"
+            NDK_HOME: "{{ lookup('env', 'HOME') }}/Library/Android/sdk/ndk/{{ ndk_version.stdout }}"
+          args:
+            executable: /bin/bash

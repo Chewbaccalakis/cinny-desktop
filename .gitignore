@@ -2,5 +2,7 @@ experiment
 dist
 node_modules
 devAssets
+ios_build.log
+android_build.log
 
 .DS_Store
