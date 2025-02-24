@@ -25,6 +25,10 @@
 
     - name: Clean previous builds
       block:
+        - name: Clean release directory
+          ansible.builtin.file:
+            path: release/*
+            state: absent
         - name: Clean target directory
           ansible.builtin.file:
             path: src-tauri/target
