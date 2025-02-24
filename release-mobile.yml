@@ -1,0 +1,114 @@
+---
+- name: Create and Upload GitHub Release
+  hosts: localhost
+  gather_facts: false
+  tasks:
+
+    - name: Gather app metadata
+      block:
+        - name: Read tauri.conf.json
+          ansible.builtin.slurp:
+            src: src-tauri/tauri.conf.json
+          register: tauri_config
+
+        - name: Extract app version
+          set_fact:
+            app_version: "{{ tauri_config['content'] | b64decode | from_json | json_query('version') }}"
+
+        - name: Print extracted version
+          debug:
+            msg: "Building Cinny version {{ app_version }}"
+
+    - name: Create GitHub draft release
+      block:
+        - name: Get latest release
+          community.general.github_release:
+            user: "{{ github_user }}"
+            repo: "{{ github_repo }}"
+            action: latest_release
+          register: latest_release
+          ignore_errors: true  # In case no release exists
+
+        - name: Extract latest release version
+          set_fact:
+            latest_version: "{{ (latest_release.tag | default('v0')) | regex_replace('^v', '') }}"
+
+        - name: Print latest release
+          debug:
+            msg: "{{ latest_release }}"
+
+        - name: Determine new release version
+          set_fact:
+            new_version: >-
+              {% if latest_version.startswith(app_version) %}
+              {{ app_version }}-build{{ (latest_version | regex_search('-build(\d+)', '\1') | default('0') | int) + 1 }}
+              {% else %}
+              {{ app_version }}-build{{ (latest_version | regex_search('-build(\d+)', '\1') | default('0') | int) + 1 }}
+              {% endif %}
+
+        - name: Print new release version
+          debug:
+            msg: "Github version: {{ latest_version }}, App Version: {{ app_version }}. New GitHub release version will be {{ new_version }}"
+
+        - name: Create GitHub release via API
+          uri:
+            url: "https://api.github.com/repos/{{ github_user }}/{{ github_repo }}/releases"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ github_token }}"
+              Accept: "application/vnd.github.v3+json"
+            body_format: json
+            body:
+              tag_name: "v{{ new_version }}"
+              target_commitish: "main"
+              name: "Cinny mobile v{{ new_version }}"
+              body: "Automated release for version {{ new_version }}"
+              draft: true
+              prerelease: true
+            status_code: [200, 201]
+          when: latest_version != new_version
+
+    - name: Upload files to draft release
+      block:
+        - name: Find files matching pattern
+          find:
+            paths: "release/"
+            patterns: "*"
+            use_regex: no
+          register: found_files
+
+        - name: Extract draft release upload URL
+          uri:
+            url: "https://api.github.com/repos/{{ github_user }}/{{ github_repo }}/releases"
+            headers:
+              Authorization: "token {{ github_token }}"
+              Accept: "application/vnd.github.v3+json"
+            method: GET
+            return_content: yes
+          register: releases_response
+
+        - name: Set draft release upload URL
+          set_fact:
+            draft_release: "{{ releases_response.json | selectattr('draft', 'equalto', true) | list | first | default({}) }}"
+            upload_url: "{{ (releases_response.json | selectattr('draft', 'equalto', true) | list | first | default({})).upload_url | regex_replace('\\{\\?name,label\\}', '') }}"
+
+        - name: Fail if no draft release found
+          fail:
+            msg: "No draft release found!"
+          when: upload_url == ""
+
+        - name: Upload assets to draft release
+          uri:
+            url: "{{ upload_url }}?name={{ item.path | basename }}"
+            headers:
+              Authorization: "token {{ github_token }}"
+              Accept: "application/vnd.github.v3+json"
+              Content-Type: "application/octet-stream"
+            method: POST
+            src: "{{ item.path }}"
+            status_code: [201]
+          loop: "{{ found_files.files }}"
+
+  vars:
+    github_user: "Chewbaccalakis"
+    github_repo: "cinny-mobile"

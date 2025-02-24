@@ -1,6 +1,11 @@
 ---
 - name: Build mobile packages for Cinny
   hosts: localhost
+  gather_facts: false
+  vars_prompt:
+  - name: android_key_password
+    prompt: "Enter android keystore password"
+    private: yes
   tasks:
 
     - name: Gather app metadata
@@ -41,15 +46,30 @@
           block:
             - name: Clean build directory
               ansible.builtin.file:
-                path: src-tauri/gen/apple/build
+                path: src-tauri/gen/android/app/build
                 state: absent
 
-            - name: Clean .gradle
+            - name: Delete proguard-tauri.pro
+              ansible.builtin.file:
+                path: src-tauri/gen/android/app/proguard-tauri.pro
+                state: absent
+
+            - name: Delete tauri.build.gradle.kts
+              ansible.builtin.file:
+                path: src-tauri/gen/android/app/tauri.build.gradle.kts
+                state: absent
+
+            - name: Delete tauri.properties
+              ansible.builtin.file:
+                path: src-tauri/gen/android/app/tauri.properties
+                state: absent
+
+            - name: Delete .gradle
               ansible.builtin.file:
                 path: src-tauri/gen/android/.gradle
                 state: absent
 
-            - name: Clean build directory
+            - name: Delete tauri.settings.gradle
               ansible.builtin.file:
                 path: src-tauri/gen/android/tauri.settings.gradle
                 state: absent
@@ -86,5 +106,37 @@
             JAVA_HOME: "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
             ANDROID_HOME: "{{ lookup('env', 'HOME') }}/Library/Android/sdk"
             NDK_HOME: "{{ lookup('env', 'HOME') }}/Library/Android/sdk/ndk/{{ ndk_version.stdout }}"
+            ANDROID_KEY_ALIAS: "{{ android_key_alias }}"
+            ANDROID_KEY_PASSWORD: "{{ android_key_password }}"
+            ANDROID_STORE_FILE: "{{ android_store_file }}"
           args:
             executable: /bin/bash
+        
+        - name: Copy .apk file to release folder
+          ansible.builtin.copy:
+            src: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+            dest: release/Cinny-{{ app_version }}.apk
+
+    - name: Generate checksums
+      block:
+        - name: Generate checksum for release ipa
+          ansible.builtin.stat:
+            path: "release/Cinny-{{ app_version }}.ipa"
+            checksum_algorithm: sha256
+          register: ipa_sha256_results
+
+        - name: Save ipa checksum to file
+          ansible.builtin.copy:
+            content: "{{ ipa_sha256_results.stat.checksum }}"
+            dest: "release/Cinny-{{ app_version }}.ipa.sha256"
+
+        - name: Generate checksum for release apk
+          ansible.builtin.stat:
+            path: "release/Cinny-{{ app_version }}.apk"
+            checksum_algorithm: sha256
+          register: apk_sha256_results
+
+        - name: Save apk checksum to file
+          ansible.builtin.copy:
+            content: "{{ apk_sha256_results.stat.checksum }}"
+            dest: "release/Cinny-{{ app_version }}.apk.sha256"
