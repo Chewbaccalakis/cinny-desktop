@@ -14,14 +14,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_localhost::Builder::new(port).build());
 
-    #[cfg(not(mobile))]
-    {
-        builder = builder
-            .plugin(tauri_plugin_updater::Builder::new().build())
-            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-            .plugin(tauri_plugin_window_state::Builder::default().build());
-    }
-
     builder
         .run(context)
         .expect("error while building tauri application")
